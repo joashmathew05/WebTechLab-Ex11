@@ -1,0 +1,86 @@
+<!-- URK24CS1102 | Experiment 11: MongoDB CRUD interface demo -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JM Interiors | Experiment 11 CRUD Demo</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:#f6f2ef;color:#302733}
+header{background:#39283d;color:#fff;padding:22px 7%;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+header h1{font-size:23px;margin:0}header span{color:#e7d8e8;font-size:13px}
+main{max-width:1050px;margin:30px auto;padding:0 18px}.intro{margin-bottom:22px}.intro h2{margin-bottom:8px}.intro p{color:#6b626b;line-height:1.5}
+.panel{background:white;border-radius:12px;padding:22px;margin-bottom:20px;box-shadow:0 4px 16px #2d20300d}
+form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px}
+label{display:block;font-size:13px;font-weight:bold;margin-bottom:6px}
+input,select{width:100%;padding:11px;border:1px solid #d9d0d9;border-radius:6px;font:inherit}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:15px}
+button{border:0;border-radius:6px;padding:10px 15px;background:#604364;color:white;cursor:pointer;font-weight:bold}
+button.secondary{background:#eee7ef;color:#39283d}button.danger{background:#a83d50}button:hover{opacity:.88}
+.table-wrap{overflow-x:auto}table{width:100%;border-collapse:collapse;min-width:600px}th,td{text-align:left;padding:12px;border-bottom:1px solid #eee7ef;font-size:14px}th{background:#f5eff5;color:#49364e}
+.status{font-size:13px;color:#3b704c;margin-top:10px;min-height:18px}.tag{display:inline-block;background:#f0e6f2;color:#604364;padding:4px 8px;border-radius:20px;font-size:12px}
+.note{font-size:12px;color:#766b76;line-height:1.5}footer{text-align:center;padding:22px;color:#796f79;font-size:13px}
+@media(max-width:700px){form{grid-template-columns:1fr}header{padding:20px}}
+</style>
+</head>
+<body>
+<header><div><h1>JM Interior Design Studio</h1><span>Experiment 11 · CRUD Operations Demo</span></div><span class="tag">Browser demo</span></header>
+<main>
+<section class="intro"><h2>Project Records</h2><p>Manage interior design projects with Create, Read, Update and Delete actions. This page demonstrates the CRUD interface using browser storage; it is not connected to a MongoDB database.</p></section>
+<section class="panel">
+<h3 id="formTitle">Add a project</h3>
+<form id="projectForm">
+<div><label for="projectName">Project name</label><input id="projectName" required placeholder="e.g. Modern Living Room"></div>
+<div><label for="clientName">Client name</label><input id="clientName" required placeholder="e.g. Alex Thomas"></div>
+<div><label for="projectType">Project type</label><select id="projectType"><option>Home Interior</option><option>Office Design</option><option>Space Planning</option><option>Kitchen Design</option></select></div>
+<div><label for="budget">Budget (₹)</label><input id="budget" type="number" min="0" required placeholder="e.g. 150000"></div>
+<div><label for="status">Status</label><select id="status"><option>Planning</option><option>In Progress</option><option>Completed</option></select></div>
+<div class="actions" style="align-items:end"><button id="saveBtn" type="submit">Add Project</button><button class="secondary" type="button" id="cancelBtn" hidden>Cancel edit</button></div>
+</form>
+<p class="status" id="message" aria-live="polite"></p>
+</section>
+<section class="panel">
+<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"><h3>Saved projects</h3><button class="secondary" id="resetBtn" type="button">Restore sample data</button></div>
+<div class="table-wrap"><table><thead><tr><th>Project</th><th>Client</th><th>Type</th><th>Budget</th><th>Status</th><th>Actions</th></tr></thead><tbody id="projectRows"></tbody></table></div>
+<p class="note">Tip: Use Edit to load a record into the form, then save your changes. Delete removes a record from this browser demo.</p>
+</section>
+</main>
+<footer>JM Interior Design Studio · Web Technology Lab · URK24CS1102</footer>
+<script>
+const sampleProjects = [
+ {id:1,name:"Contemporary Living Room",client:"Aarav Kumar",type:"Home Interior",budget:180000,status:"In Progress"},
+ {id:2,name:"Creative Office Space",client:"Mira Joseph",type:"Office Design",budget:250000,status:"Planning"},
+ {id:3,name:"Compact Kitchen Makeover",client:"Daniel Roy",type:"Kitchen Design",budget:95000,status:"Completed"}
+];
+let projects = JSON.parse(localStorage.getItem("jmInteriorProjects") || "null") || sampleProjects;
+let editingId = null;
+const form = document.getElementById("projectForm");
+const field = id => document.getElementById(id);
+function saveData(){localStorage.setItem("jmInteriorProjects",JSON.stringify(projects));}
+function render(){
+ const rows=field("projectRows"); rows.innerHTML="";
+ if(!projects.length){rows.innerHTML='<tr><td colspan="6">No projects yet. Add one using the form above.</td></tr>';return;}
+ projects.forEach(p=>{
+  const tr=document.createElement("tr");
+  [p.name,p.client,p.type,"₹"+Number(p.budget).toLocaleString("en-IN"),p.status].forEach(value=>{const td=document.createElement("td");td.textContent=value;tr.appendChild(td);});
+  const td=document.createElement("td");
+  const edit=document.createElement("button");edit.textContent="Edit";edit.className="secondary";edit.type="button";edit.onclick=()=>editProject(p.id);
+  const del=document.createElement("button");del.textContent="Delete";del.className="danger";del.type="button";del.style.marginLeft="6px";del.onclick=()=>deleteProject(p.id);
+  td.append(edit,del);tr.appendChild(td);rows.appendChild(tr);
+ });
+}
+form.addEventListener("submit",e=>{
+ e.preventDefault();
+ const item={name:field("projectName").value.trim(),client:field("clientName").value.trim(),type:field("projectType").value,budget:Number(field("budget").value),status:field("status").value};
+ if(editingId!==null){projects=projects.map(p=>p.id===editingId?{...p,...item}:p);field("message").textContent="Project updated successfully.";}
+ else{item.id=Date.now();projects.push(item);field("message").textContent="Project added successfully.";}
+ saveData();render();form.reset();editingId=null;field("formTitle").textContent="Add a project";field("saveBtn").textContent="Add Project";field("cancelBtn").hidden=true;
+});
+function editProject(id){const p=projects.find(x=>x.id===id);if(!p)return;editingId=id;field("projectName").value=p.name;field("clientName").value=p.client;field("projectType").value=p.type;field("budget").value=p.budget;field("status").value=p.status;field("formTitle").textContent="Update project";field("saveBtn").textContent="Save Changes";field("cancelBtn").hidden=false;window.scrollTo({top:0,behavior:"smooth"});}
+function deleteProject(id){const p=projects.find(x=>x.id===id);if(!p||!confirm("Delete "+p.name+"?"))return;projects=projects.filter(x=>x.id!==id);saveData();render();field("message").textContent="Project deleted.";}
+field("cancelBtn").onclick=()=>{editingId=null;form.reset();field("formTitle").textContent="Add a project";field("saveBtn").textContent="Add Project";field("cancelBtn").hidden=true;};
+field("resetBtn").onclick=()=>{if(confirm("Restore the original sample projects?")){projects=sampleProjects.map(p=>({...p}));saveData();render();field("message").textContent="Sample data restored.";}}
+render();
+</script>
+</body>
+</html>
